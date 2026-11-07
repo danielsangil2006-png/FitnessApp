@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'pantalla_entrenamiento_activo.dart'; 
-import 'pantalla_dashboard.dart'; // Importamos tu nuevo Dashboard
+
+import 'pantalla_dashboard.dart';
+import 'pantalla_historial.dart';
+import 'pantalla_perfil.dart';
+import 'pantalla_kronos.dart';
 
 void main() {
   runApp(const KinetixApp());
@@ -12,73 +15,90 @@ class KinetixApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Kinetix Fitness',
-      debugShowCheckedModeBanner: false, 
+      title: 'Kinetix',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F121D), 
-        primaryColor: const Color(0xFF10B981), 
-        cardColor: const Color(0xFF1E2433), 
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFF0F121D),
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Color(0xFF8B93A6),
-        ),
-        fontFamily: 'Roboto', 
+        primaryColor: const Color(0xFF10B981),
+        scaffoldBackgroundColor: const Color(0xFF0F121D),
+        useMaterial3: true,
       ),
-      home: const PantallaPrincipalBase(),
+      home: const PantallaPrincipal(),
     );
   }
 }
 
-class PantallaPrincipalBase extends StatefulWidget {
-  const PantallaPrincipalBase({super.key});
+class PantallaPrincipal extends StatefulWidget {
+  const PantallaPrincipal({super.key});
 
   @override
-  State<PantallaPrincipalBase> createState() => _PantallaPrincipalBaseState();
+  State<PantallaPrincipal> createState() => _PantallaPrincipalState();
 }
 
-class _PantallaPrincipalBaseState extends State<PantallaPrincipalBase> {
-  // Inicializamos en 0 para que la app abra directo en el Dashboard de Rutinas
-  int _indiceActual = 0; 
+class _PantallaPrincipalState extends State<PantallaPrincipal> {
+  int _indiceActual = 0;
 
-final List<Widget> _pantallas = [
-    const PantallaDashboard(),                                     
-    const Center(child: Text('Abre una rutina desde el Dashboard')), // Línea corregida
-    const Center(child: Text('Análisis (En construcción)')),       
-    const Center(child: Text('Comunidad (En construcción)')),      
+  final Color bgDark = const Color(0xFF0F121D);
+  final Color greenAccent = const Color(0xFF10B981);
+  final Color textMuted = const Color(0xFF8B93A6);
+
+  // EXACTAMENTE 4 ELEMENTOS (Índices 0, 1, 2 y 3)
+  // Las 4 pantallas (Dashboard, Kronos, Análisis y Perfil)
+  final List<Widget> _pantallas = [
+    const PantallaDashboard(), // Índice 0
+    const PantallaKronos(usuarioId: 1,),    // Índice 1 - ¡Aquí vive nuestro chatbot!
+    const PantallaHistorial(), // Índice 2
+    const PantallaPerfil(),    // Índice 3
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: bgDark,
       body: _pantallas[_indiceActual],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _indiceActual,
-        type: BottomNavigationBarType.fixed, 
-        onTap: (index) {
-          setState(() {
-            _indiceActual = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fitness_center), 
-            label: 'Rutinas'
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.play_circle_fill), 
-            label: 'Entreno'
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.insights), 
-            label: 'Análisis'
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people), 
-            label: 'Comunidad'
-          ),
-        ],
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Colors.white12, width: 1)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _indiceActual > 3 ? 0 : _indiceActual, // Protección extra contra desbordes
+          onTap: (index) {
+            setState(() {
+              _indiceActual = index;
+            });
+          },
+          backgroundColor: bgDark,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: greenAccent,
+          unselectedItemColor: textMuted,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 12),
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.smart_toy_outlined),
+              activeIcon: Icon(Icons.smart_toy),
+              label: 'Kronos',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: 'Análisis',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Perfil',
+            ),
+          ],
+        ),
       ),
     );
   }

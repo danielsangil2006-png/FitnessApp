@@ -3,6 +3,7 @@ import 'api_servicio.dart';
 import 'rutina.dart'; 
 import 'pantalla_entrenamiento_activo.dart'; 
 import 'pantalla_crear_rutina.dart';
+import 'pantalla_editar_rutina.dart';
 
 class PantallaDashboard extends StatefulWidget {
   const PantallaDashboard({super.key});
@@ -18,18 +19,67 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
   final Color textMuted = const Color(0xFF8B93A6);
 
   late Future<List<Rutina>> _futureRutinas;
+  List<Rutina> _rutinas = []; 
+  dynamic _ultimoProgreso; 
   int _pestanaActiva = 0;
 
   @override
   void initState() {
     super.initState();
-    _cargarRutinas();
+    _cargarDatos();
   }
 
-  void _cargarRutinas() {
+  void _cargarDatos() async {
+    final peticion = ApiServicio.obtenerMisRutinas();
     setState(() {
-      _futureRutinas = ApiServicio.obtenerMisRutinas();
+      _futureRutinas = peticion;
     });
+    
+    peticion.then((lista) {
+      if (mounted) setState(() => _rutinas = lista);
+    });
+
+    final progreso = await ApiServicio.obtenerUltimoProgreso();
+    if (mounted) {
+      setState(() {
+        _ultimoProgreso = progreso;
+      });
+    }
+  }
+
+  void _confirmarEliminacion(int idRutina) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('¿Eliminar Rutina?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('Esta acción borrará la plantilla permanentemente. Tus entrenamientos pasados en el historial se mantendrán.', style: TextStyle(color: textMuted)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: TextStyle(color: textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(ctx); 
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Eliminando...'), backgroundColor: cardDark));
+              
+              bool exito = await ApiServicio.eliminarRutina(idRutina);
+              
+              if (exito && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rutina eliminada'), backgroundColor: Colors.redAccent));
+                _cargarDatos(); 
+              } else if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.orangeAccent));
+              }
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -58,7 +108,7 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
       body: RefreshIndicator(
         color: greenAccent,
         backgroundColor: cardDark,
-        onRefresh: () async => _cargarRutinas(),
+        onRefresh: () async => _cargarDatos(),
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           children: [
@@ -184,10 +234,27 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
   }
 
   Widget _construirUltimoCompletado() {
+    String nombreRutina = 'Rutina Desconocida';
+    if (_ultimoProgreso != null) {
+      int idBuscado = _ultimoProgreso['rutinaId'];
+      try {
+        if (_rutinas.isNotEmpty) {
+          final rutinaEncontrada = _rutinas.firstWhere((r) => r.id == idBuscado);
+          nombreRutina = rutinaEncontrada.nombre;
+        } else {
+          nombreRutina = 'Rutina #$idBuscado';
+        }
+      } catch (e) {
+        nombreRutina = 'Rutina #$idBuscado'; 
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: cardDark, borderRadius: BorderRadius.circular(16)),
-      child: Column(
+      child: _ultimoProgreso == null
+        ? Center(child: Text('Aún no hay entrenamientos', style: TextStyle(color: textMuted)))
+        : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -200,7 +267,7 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
                   Text('ÚLTIMO COMPLETADO', style: TextStyle(color: textMuted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
                 ],
               ),
-              Text('Ayer, 18:45', style: TextStyle(color: textMuted, fontSize: 11)),
+              Text('Reciente', style: TextStyle(color: textMuted, fontSize: 11)),
             ],
           ),
           const SizedBox(height: 12),
@@ -211,17 +278,17 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Empuje Clásico - Cargas Altas', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(nombreRutina, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(Icons.access_time, color: textMuted, size: 14),
                         const SizedBox(width: 4),
-                        Text('1h 14m', style: TextStyle(color: textMuted, fontSize: 13)),
+                        Text('${_ultimoProgreso['tiempoSegundos'] ~/ 60}m ${_ultimoProgreso['tiempoSegundos'] % 60}s', style: TextStyle(color: textMuted, fontSize: 13)),
                         const SizedBox(width: 16),
                         Icon(Icons.fitness_center, color: textMuted, size: 14),
                         const SizedBox(width: 4),
-                        Text('14.850 kg', style: TextStyle(color: textMuted, fontSize: 13)),
+                        Text('${(_ultimoProgreso['seriesDetalle'] as List).length} series', style: TextStyle(color: textMuted, fontSize: 13)),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -229,9 +296,8 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _etiquetaMusculo('Pecho (52%)'),
-                        _etiquetaMusculo('Tríceps (28%)'),
-                        _etiquetaMusculo('Hombro (20%)'),
+                        _etiquetaMusculo('Sesión Guardada'),
+                        _etiquetaMusculo('Datos Reales'),
                       ],
                     )
                   ],
@@ -244,8 +310,8 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.accessibility_new, color: textMuted, size: 40),
-                    Text('EMPUJE', style: TextStyle(color: textMuted, fontSize: 8, fontWeight: FontWeight.bold)),
+                    Icon(Icons.accessibility_new, color: greenAccent, size: 40),
+                    Text('HECHO', style: TextStyle(color: greenAccent, fontSize: 9, fontWeight: FontWeight.bold)),
                   ],
                 ),
               )
@@ -335,7 +401,47 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
                   Text(categoria, style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                 ],
               ),
-              Icon(Icons.more_vert, color: textMuted, size: 18),
+              PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                icon: Icon(Icons.more_vert, color: textMuted, size: 20),
+                color: const Color(0xFF2A3245),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (valor) async {
+                  if (valor == 'eliminar' && rutina.id != null) {
+                    _confirmarEliminacion(rutina.id!);
+                  } else if (valor == 'editar' && rutina.id != null) {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PantallaEditarRutina(rutinaOriginal: rutina)
+                      ),
+                    );
+                    _cargarDatos();
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'editar',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                        SizedBox(width: 10),
+                        Text('Editar rutina', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'eliminar',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                        SizedBox(width: 10),
+                        Text('Eliminar rutina', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -345,7 +451,7 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: const Color(0xFF0F121D), borderRadius: BorderRadius.circular(8)),
-            child: Text(rutina.descripcion, style: TextStyle(color: textMuted, fontSize: 12)),
+            child: Text(rutina.descripcion ?? '', style: TextStyle(color: textMuted, fontSize: 12)),
           ),
           const SizedBox(height: 12),
           Row(
@@ -359,9 +465,10 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
                 ],
               ),
               ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   if (rutina.id != null) {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => PantallaEntrenoVivo(rutinaId: rutina.id!)));
+                    await Navigator.push(context, MaterialPageRoute(builder: (context) => PantallaEntrenoVivo(rutinaId: rutina.id!)));
+                    _cargarDatos();
                   }
                 },
                 icon: const Icon(Icons.play_arrow, size: 16, color: Colors.black),
@@ -401,10 +508,9 @@ class _PantallaDashboardState extends State<PantallaDashboard> {
           Text('Organiza tus series, descansos programados y notas de técnica.', style: TextStyle(color: textMuted, fontSize: 12), textAlign: TextAlign.center),
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            // AQUÍ ESTÁ LA MAGIA DEL ASYNC/AWAIT
             onPressed: () async {
               await Navigator.push(context, MaterialPageRoute(builder: (context) => const PantallaCrearRutina()));
-              _cargarRutinas(); // Forzamos la actualización visual al volver
+              _cargarDatos(); 
             },
             icon: const Icon(Icons.add, color: Colors.white, size: 18),
             label: const Text('Crear nueva plantilla', style: TextStyle(color: Colors.white)),

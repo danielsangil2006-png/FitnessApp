@@ -1,154 +1,140 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'ejercicio.dart';
-import 'progreso.dart';
 import 'rutina.dart';
-import 'dart:io';
 
 class ApiServicio {
-  // REEMPLAZA ESTO CON LA IPV4 DE TU COMPUTADORA
-  static const String ipBase = 'http://192.168.1.8:8080/api';
+  // ⚠️ IMPORTANTE: Pon la IP de tu computadora aquí (ej. 192.168.1.5)
+static const String ipBase = "http://192.168.1.8:8081/api";  // Correcto: Termina en /api/kronos
+static const String baseUrl = "http://192.168.1.8:8081/api/kronos"; 
 
-  static Future<bool> login(String email, String password) async {
-    final respuesta = await http.post(
-      Uri.parse('$ipBase/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email, 'password': password}),
-    );
+  
 
-    if (respuesta.statusCode == 200) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('jwt_token', respuesta.body);
-      return true;
-    }
-    return false;
-  }
-
-  static Future<bool> registro(String nombre, String email, String password) async {
-    final respuesta = await http.post(
-      Uri.parse('$ipBase/auth/registro'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'nombre': nombre, 'email': email, 'password': password}),
-    );
-    return respuesta.statusCode == 200;
-  }
-
-  static Future<void> cerrarSesion() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('jwt_token');
-  }
-
-  static Future<Map<String, String>> _obtenerCabeceras() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token') ?? '';
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token'
-    };
-  }
-
-  static Future<List<Ejercicio>> obtenerEjercicios() async {
-    final respuesta = await http.get(Uri.parse('$ipBase/ejercicios'), headers: await _obtenerCabeceras());
-    if (respuesta.statusCode == 200) {
-      List jsonResponse = json.decode(utf8.decode(respuesta.bodyBytes));
-      return jsonResponse.map((data) => Ejercicio.fromJson(data)).toList();
+  static Future<List<Rutina>> obtenerMisRutinas() async {
+    final response = await http.get(Uri.parse('$ipBase/rutinas'));
+    if (response.statusCode == 200) {
+      Iterable lista = jsonDecode(response.body);
+      return lista.map((modelo) => Rutina.fromJson(modelo)).toList();
     } else {
-      throw Exception('Error al cargar ejercicios');
-    }
-  }
-
-  static Future<List<Progreso>> obtenerProgresos() async {
-    final respuesta = await http.get(Uri.parse('$ipBase/progresos'), headers: await _obtenerCabeceras());
-    if (respuesta.statusCode == 200) {
-      List jsonResponse = json.decode(utf8.decode(respuesta.bodyBytes));
-      return jsonResponse.map((data) => Progreso.fromJson(data)).toList();
-    } else {
-      throw Exception('Error al cargar progreso');
-    }
-  }
-
-
-static Future<List<Rutina>> obtenerMisRutinas() async {
-    final respuesta = await http.get(
-      Uri.parse('$ipBase/rutinas'),
-      headers: await _obtenerCabeceras(),
-    );
-
-    if (respuesta.statusCode == 200) {
-      // Usamos utf8.decode para evitar problemas con los acentos (ñ, á, é)
-      List<dynamic> cuerpo = json.decode(utf8.decode(respuesta.bodyBytes));
-      return cuerpo.map((dynamic item) => Rutina.fromJson(item)).toList();
-    } else {
-      throw Exception('Error al cargar las rutinas. Código: ${respuesta.statusCode}');
-    }
-  }
-
-  static Future<bool> subirVideo(File video) async {
-    // Usamos MultipartRequest para enviar archivos físicos
-    var request = http.MultipartRequest('POST', Uri.parse('$ipBase/videos/subir'));
-    
-    // Añadimos el token de seguridad
-    request.headers.addAll(await _obtenerCabeceras());
-    
-    // Adjuntamos el archivo de video
-    request.files.add(await http.MultipartFile.fromPath('file', video.path));
-
-    final response = await request.send();
-    return response.statusCode == 200;
-  }
-
-  static Future<bool> guardarProgreso(Progreso progreso) async {
-    final respuesta = await http.post(
-      Uri.parse('$ipBase/progresos'),
-      headers: await _obtenerCabeceras(),
-      body: json.encode(progreso.toJson()),
-    );
-    return respuesta.statusCode == 200;
-  }
-
-  static Future<Map<String, String>> obtenerDetalleRutina(int id) async {
-    final respuesta = await http.get(
-      Uri.parse('$ipBase/rutinas/$id'),
-      headers: await _obtenerCabeceras(),
-    );
-
-    if (respuesta.statusCode == 200) {
-      return json.decode(utf8.decode(respuesta.bodyBytes));
-    } else {
-      throw Exception('Error al cargar detalle de rutina: ${respuesta.statusCode}');
-    }
-  }
-
-  static Future<bool> crearRutina(Map<String, dynamic> datosRutina) async {
-    final respuesta = await http.post(
-      Uri.parse('$ipBase/rutinas'),
-      headers: await _obtenerCabeceras(),
-      body: json.encode(datosRutina),
-    );
-
-    // 200 (OK) o 201 (Creado) significan éxito
-    if (respuesta.statusCode == 200 || respuesta.statusCode == 201) {
-      return true;
-    } else {
-      print('Error al crear rutina: ${respuesta.body}');
-      return false;
+      throw Exception('Error al cargar las rutinas');
     }
   }
 
   static Future<Rutina> obtenerRutinaPorId(int id) async {
-    // ATENCIÓN: Si tu ipBase ya dice "/api/rutinas", debes cambiar la línea de abajo 
-    // por Uri.parse('$ipBase/$id') para que no se duplique la palabra rutinas.
-    final url = Uri.parse('$ipBase/rutinas/$id'); 
-    
-    print('🌐 Buscando rutina en: $url');
-    final response = await http.get(url);
-    print('📥 Respuesta del servidor (Código ${response.statusCode}): ${response.body}');
-
+    final response = await http.get(Uri.parse('$ipBase/rutinas/$id'));
     if (response.statusCode == 200) {
       return Rutina.fromJson(jsonDecode(response.body));
     } else {
-      throw Exception('Fallo con código ${response.statusCode}');
+      throw Exception('Fallo con código');
     }
   }
+
+  // 1. MÉTODO RESTAURADO PARA LA PANTALLA CREAR RUTINA
+  static Future<bool> crearRutina(Map nuevaRutina) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$ipBase/rutinas'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(nuevaRutina),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 2. TIPO "List" SIMPLE SIN SÍMBOLOS COMPLEJOS
+  static Future<bool> guardarProgreso(int rutinaId, int tiempoSegundos, List seriesLog) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$ipBase/progresos'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'rutinaId': rutinaId,
+          'usuarioId': 1,
+          'tiempoSegundos': tiempoSegundos,
+          'fecha': DateTime.now().toIso8601String(),
+          'seriesDetalle': seriesLog, 
+        }),
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 3. TIPO "dynamic" PARA EVITAR EL ERROR "Future?>"
+  static Future<dynamic> obtenerUltimoProgreso() async {
+    try {
+      final response = await http.get(Uri.parse('$ipBase/progresos'));
+      if (response.statusCode == 200) {
+        List<dynamic> progresos = jsonDecode(response.body);
+        if (progresos.isNotEmpty) {
+          progresos.sort((a, b) => (b['id'] as int).compareTo(a['id'] as int));
+          return progresos.first; 
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static Future<bool> eliminarRutina(int id) async {
+    try {
+      final response = await http.delete(Uri.parse('$ipBase/rutinas/$id'));
+      // Spring Boot suele devolver 200 (OK) o 204 (No Content) al borrar exitosamente
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> editarRutina(int id, Map<String, dynamic> rutinaData) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$ipBase/rutinas/$id'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(rutinaData),
+      );
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('Error al editar rutina: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> login(String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$ipBase/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<bool> registrarUsuario(Map<String, dynamic> datos) async {
+    try {
+      final url = Uri.parse('$ipBase/auth/registro');
+      print('🚀 Intentando enviar datos a: $url'); // Nos dirá si la IP está mal escrita
+      
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(datos),
+      );
+      
+      print('✅ El servidor respondió con código: ${response.statusCode}');
+      print('📄 Respuesta del servidor: ${response.body}');
+      
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print('❌ ERROR CRÍTICO EN REGISTRO: $e'); // ¡AQUÍ ESTÁ EL CULPABLE!
+      return false;
+    }
+  }
+
 }
